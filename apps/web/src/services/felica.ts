@@ -14,6 +14,7 @@ export interface FelicaChatResponse {
 }
 
 export interface ChatMessage {
+    id: string;
     text: string;
     isUser: boolean;
     timestamp: number;

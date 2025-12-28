@@ -7,7 +7,7 @@ export const FelicaChat = () => {
     const [isOpen, setIsOpen] = useState(false);
     const [input, setInput] = useState('');
     const [messages, setMessages] = useState<ChatMessage[]>([
-        { id: '1', text: "Hi! I'm Felica. content_copy How can I help you with your finances today?", isUser: false, timestamp: new Date() }
+        { id: '1', text: "Hi! I'm Felica. content_copy How can I help you with your finances today?", isUser: false, timestamp: Date.now() }
     ]);
     const [loading, setLoading] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -28,7 +28,7 @@ export const FelicaChat = () => {
             id: Date.now().toString(),
             text: input,
             isUser: true,
-            timestamp: new Date()
+            timestamp: Date.now()
         };
 
         setMessages(prev => [...prev, userMsg]);
@@ -37,7 +37,7 @@ export const FelicaChat = () => {
 
         try {
             // Prepare history for API
-            const history = messages.map(m => ({ text: m.text, isUser: m.isUser }));
+            const history = messages.map(m => ({ text: m.text, isUser: m.isUser, timestamp: m.timestamp, id: m.id }));
 
             const response = await felicaService.chat(userMsg.text, history);
 
@@ -45,7 +45,7 @@ export const FelicaChat = () => {
                 id: (Date.now() + 1).toString(),
                 text: response.response,
                 isUser: false,
-                timestamp: new Date()
+                timestamp: Date.now()
             };
             setMessages(prev => [...prev, botMsg]);
         } catch (error) {
@@ -54,7 +54,7 @@ export const FelicaChat = () => {
                 id: (Date.now() + 1).toString(),
                 text: "I'm having trouble connecting right now. Please try again.",
                 isUser: false,
-                timestamp: new Date()
+                timestamp: Date.now()
             };
             setMessages(prev => [...prev, errorMsg]);
         } finally {

@@ -7,7 +7,7 @@ export const FelicaChatWidget = () => {
     const [isOpen, setIsOpen] = useState(false);
     const [input, setInput] = useState('');
     const [history, setHistory] = useState<ChatMessage[]>([
-        { text: "Hi! I'm Felica. Ask me anything about your finances.", isUser: false, timestamp: Date.now() }
+        { id: '1', text: "Hi! I'm Felica. Ask me anything about your finances.", isUser: false, timestamp: Date.now() }
     ]);
     const [loading, setLoading] = useState(false);
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -21,18 +21,18 @@ export const FelicaChatWidget = () => {
     const handleSend = async () => {
         if (!input.trim() || loading) return;
 
-        const userMsg: ChatMessage = { text: input, isUser: true, timestamp: Date.now() };
+        const userMsg: ChatMessage = { id: Date.now().toString(), text: input, isUser: true, timestamp: Date.now() };
         setHistory(prev => [...prev, userMsg]);
         setInput('');
         setLoading(true);
 
         try {
             const response = await felicaService.chat(userMsg.text, history);
-            const aiMsg: ChatMessage = { text: response.response, isUser: false, timestamp: Date.now() };
+            const aiMsg: ChatMessage = { id: (Date.now() + 1).toString(), text: response.response, isUser: false, timestamp: Date.now() };
             setHistory(prev => [...prev, aiMsg]);
         } catch (err) {
             console.error(err);
-            setHistory(prev => [...prev, { text: "I'm having trouble connecting. Please try again.", isUser: false, timestamp: Date.now() }]);
+            setHistory(prev => [...prev, { id: (Date.now() + 1).toString(), text: "I'm having trouble connecting. Please try again.", isUser: false, timestamp: Date.now() }]);
         } finally {
             setLoading(false);
         }

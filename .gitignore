@@ -25,3 +25,7 @@ out
 
 # System
 Thumbs.db
+
+# Secrets
+serviceAccountKey.json
+**/serviceAccountKey.json
