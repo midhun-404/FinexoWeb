@@ -13,7 +13,14 @@ import { trimTrailingSlash } from 'hono/trailing-slash';
 const app = new Hono<{ Bindings: Env }>();
 
 // Global Middleware
-app.use('*', cors());
+app.use('*', cors({
+    origin: '*', // Allow all for now during dev, or specify 'http://localhost:5173'
+    allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowHeaders: ['Content-Type', 'Authorization'],
+    exposeHeaders: ['Content-Length'],
+    maxAge: 600,
+    credentials: true,
+}));
 app.use(trimTrailingSlash());
 
 // Routes
