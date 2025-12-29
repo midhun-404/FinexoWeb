@@ -16,7 +16,14 @@ felica.get('/insight', async (c) => {
 
     if (!apiKey) return c.json({ insight: "AI Configuration Missing" }, 500);
 
-    const client = new OpenAI({ apiKey, baseURL });
+    const client = new OpenAI({
+        apiKey,
+        baseURL,
+        defaultHeaders: {
+            "HTTP-Referer": "http://localhost:8787",
+            "X-Title": "Finexo"
+        }
+    });
     const summary = await getMonthlySummary(c.env, userId);
 
     const prompt = `
@@ -60,7 +67,14 @@ felica.post('/suggest', async (c) => {
     const data = await c.req.json();
     const note = data.note || '';
 
-    const client = new OpenAI({ apiKey, baseURL });
+    const client = new OpenAI({
+        apiKey,
+        baseURL,
+        defaultHeaders: {
+            "HTTP-Referer": "http://localhost:8787",
+            "X-Title": "Finexo"
+        }
+    });
     const prompt = `
         Given the expense description: "${note}", suggest a likely Category and Intent.
         
@@ -91,13 +105,26 @@ felica.post('/chat', async (c) => {
     const apiKey = c.env.FELICA_API_KEY;
     const baseURL = c.env.FELICA_BASE_URL;
     const model = c.env.FELICA_MODEL;
-    if (!apiKey) return c.json({ response: "AI Config Missing" }, 500);
+
+    console.log('Felica Chat Request:', { model, hasKey: !!apiKey, baseUrl: baseURL });
+
+    if (!apiKey) {
+        console.error("Missing API Key");
+        return c.json({ response: "AI Config Missing" }, 500);
+    }
 
     const data = await c.req.json();
     const message = data.message || '';
     const history = data.history || [];
 
-    const client = new OpenAI({ apiKey, baseURL });
+    const client = new OpenAI({
+        apiKey,
+        baseURL,
+        defaultHeaders: {
+            "HTTP-Referer": "http://localhost:8787",
+            "X-Title": "Finexo"
+        }
+    });
     const summary = await getMonthlySummary(c.env, userId);
     const db = getDb(c.env);
 
@@ -144,8 +171,9 @@ felica.post('/chat', async (c) => {
             max_tokens: 300
         });
         return c.json({ response: response.choices[0].message.content?.trim() });
-    } catch (e) {
-        return c.json({ response: "I'm having trouble thinking right now." });
+    } catch (e: any) {
+        console.error("Felica Chat Error:", e);
+        return c.json({ response: `Error: ${e.message || e}` }, 200);
     }
 });
 
