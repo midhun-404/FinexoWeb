@@ -133,3 +133,151 @@ export const getMonthlySummary = async (env: Env, userId: string, month?: string
         }
     };
 };
+
+export const getTimeline = async (env: Env, userId: string) => {
+    const db = getDb(env);
+
+    // Get last 6 months
+    const today = new Date();
+    const months = [];
+    for (let i = 5; i >= 0; i--) {
+        const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+        months.push({
+            month: d.getMonth() + 1,
+            year: d.getFullYear(),
+            label: d.toLocaleString('default', { month: 'short' })
+        });
+    }
+
+    const results = [];
+
+    for (const m of months) {
+        const startDate = new Date(Date.UTC(m.year, m.month - 1, 1)).toISOString().slice(0, 10);
+        const lastDay = new Date(Date.UTC(m.year, m.month, 0)).getDate();
+        const endDate = new Date(Date.UTC(m.year, m.month - 1, lastDay, 23, 59, 59)).toISOString();
+
+        const incomeRes = await db.prepare(
+            "SELECT sum(amount) as total FROM incomes WHERE user_id = ? AND date >= ? AND date <= ?"
+        ).bind(userId, startDate, endDate.slice(0, 10)).first();
+
+        const expenseRes = await db.prepare(
+            "SELECT sum(amount) as total FROM expenses WHERE user_id = ? AND date >= ? AND date <= ?"
+        ).bind(userId, startDate, endDate.slice(0, 10)).first();
+
+        results.push({
+            date: m.label,
+            income: (incomeRes?.total as number) || 0,
+            expense: (expenseRes?.total as number) || 0
+        });
+    }
+
+    return results;
+};
+
+export const getDailyBreakdown = async (env: Env, userId: string, month: string | number, year: string | number) => {
+    const db = getDb(env);
+    const m = parseInt(month.toString());
+    const y = parseInt(year.toString());
+
+    const startDate = new Date(Date.UTC(y, m - 1, 1)).toISOString().slice(0, 10);
+    const lastDay = new Date(Date.UTC(y, m, 0)).getDate();
+    const endDate = new Date(Date.UTC(y, m - 1, lastDay)).toISOString().slice(0, 10);
+
+    // Get all transactions for the month
+    const incomes = await db.prepare(
+        "SELECT * FROM incomes WHERE user_id = ? AND date >= ? AND date <= ? ORDER BY date ASC"
+    ).bind(userId, startDate, endDate).all();
+
+    const expenses = await db.prepare(
+        "SELECT * FROM expenses WHERE user_id = ? AND date >= ? AND date <= ? ORDER BY date ASC"
+    ).bind(userId, startDate, endDate).all();
+
+    const days = [];
+    let runningBalance = 0; // Ideally this should be opening balance, but for now 0
+
+    // Initialize map for all days
+    const dailyMap = new Map();
+    for (let i = 1; i <= lastDay; i++) {
+        dailyMap.set(i, { income: 0, expense: 0 });
+    }
+
+    // Aggregate income
+    (incomes.results as any[]).forEach(item => {
+        const day = new Date(item.date).getDate();
+        const current = dailyMap.get(day);
+        if (current) current.income += item.amount;
+    });
+
+    // Aggregate expense
+    (expenses.results as any[]).forEach(item => {
+        const day = new Date(item.date).getDate();
+        const current = dailyMap.get(day);
+        if (current) current.expense += item.amount;
+    });
+
+    // Build final array with cumulative balance
+    for (let i = 1; i <= lastDay; i++) {
+        const data = dailyMap.get(i);
+        runningBalance += (data.income - data.expense);
+        days.push({
+            day: i,
+            income: data.income,
+            expense: data.expense,
+            balance: runningBalance
+        });
+    }
+
+    return days;
+};
+
+export const searchTransactions = async (env: Env, userId: string, filters: any) => {
+    const db = getDb(env);
+
+    let query = `
+        SELECT id, date, amount, category, 'expense' as type, intent as intentOrSource, description, note 
+        FROM expenses 
+        WHERE user_id = ?
+        UNION ALL
+        SELECT id, date, amount, 'Income' as category, 'income' as type, source as intentOrSource, description, note 
+        FROM incomes 
+        WHERE user_id = ? 
+    `;
+
+    // Note: D1 doesn't support complex dynamic query building efficiently with binding in strict mode easily,
+    // so we'll fetch basic set and filter in JS if complex, or simple WHERE clauses.
+    // However, for better performance, we should add WHERE clauses.
+    // For simplicity in this fix, let's fetch strictly date range or limit 50 if no filter.
+
+    // A better approach for search:
+    const results = await db.prepare(`
+        SELECT * FROM (
+            SELECT id, date, amount, category, 'expense' as type, intent as sub_info, note FROM expenses WHERE user_id = ?
+            UNION ALL
+            SELECT id, date, amount, 'Income' as category, 'income' as type, source as sub_info, NULL as note FROM incomes WHERE user_id = ?
+        ) 
+        ORDER BY date DESC LIMIT 100
+    `).bind(userId, userId).all();
+
+    let data = results.results as any[];
+
+    // In-memory filter (since D1 SQL limit)
+    if (filters.q) {
+        const q = filters.q.toLowerCase();
+        data = data.filter(item =>
+            (item.category && item.category.toLowerCase().includes(q)) ||
+            (item.note && item.note.toLowerCase().includes(q)) ||
+            (item.sub_info && item.sub_info.toLowerCase().includes(q))
+        );
+    }
+
+    if (filters.category) {
+        data = data.filter(item => item.category === filters.category);
+    }
+
+    return data.map(item => ({
+        ...item,
+        intent: item.type === 'expense' ? item.sub_info : undefined,
+        source: item.type === 'income' ? item.sub_info : undefined,
+        description: item.note // Map note to description for frontend compatibility
+    }));
+};

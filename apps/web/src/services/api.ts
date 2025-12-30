@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-    baseURL: import.meta.env.VITE_API_URL || 'https://finexo-backend.midhunjr2222.workers.dev/api',
+    baseURL: import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:8787/api' : 'https://finexo-backend.midhunjr2222.workers.dev/api'),
     headers: {
         'Content-Type': 'application/json',
     },
